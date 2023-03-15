@@ -1,15 +1,20 @@
 import fs from 'fs';
 import nock from 'nock';
 import os from 'os';
+import { fileURLToPath } from 'url';
 import path from 'path';
 import pageloader from '../src/index.js';
 
 const { promises: fsp } = fs;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const getFixturePath = (filename) => path.join(__dirname, '..', '__fixtures__', filename);
+const readFile = (filename) => fsp.readFile(getFixturePath(filename), 'utf-8');
+
 let tempPath;
 const url1 = 'https://ru.hexlet.io/courses';
-const url2 = 'https://ru.hexlet.io';
-const expectedData = '<html><head></head><body><center><b>hello</b></center></body></html>';
 const fileName = 'ru-hexlet-io-courses.html';
 
 beforeEach(async () => {
@@ -20,25 +25,35 @@ test('return full path', async () => {
   nock(/ru\.hexlet\.io/)
     .get(/\/courses/)
     .reply(200);
-  const fullPath = await pageloader(url1, tempPath);
-  const src = path.join(tempPath, fileName);
-  expect(fullPath).toEqual(src);
+  const result = await pageloader(url1, tempPath);
+  const fullPathToHTML = path.join(tempPath, fileName);
+  expect(result).toEqual(fullPathToHTML);
 });
 
-test('download page', async () => {
+test('downloaded files are as expected', async () => {
+  const expectedBody = await readFile('before.html');
+  const expectedMainFile = await readFile('after.html');
+  const expectedImg = await readFile('nodejs.png');
   nock(/ru\.hexlet\.io/)
     .get(/\/courses/)
-    .reply(200, expectedData);
+    .reply(200, expectedBody)
+    .get(/\/assets\/professions\//)
+    .replyWithFile(200, getFixturePath('nodejs.png'), {
+      'Content-Type': 'image/png',
+    });
   await pageloader(url1, tempPath);
-  const src = path.join(tempPath, fileName);
-  const content = await fsp.readFile(src, { encoding: 'utf8' });
-  expect(content).toEqual(expectedData);
+  const pathToHTML = path.join(tempPath, fileName);
+  const actualHTML = await fsp.readFile(pathToHTML, { encoding: 'utf8' });
+  expect(actualHTML).toEqual(expectedMainFile);
+  const pathToImg = path.join(tempPath, 'ru-hexlet-io-courses_files', 'ru-hexlet-io-assets-professions-nodejs.png');
+  const actualImg = await fsp.readFile(pathToImg, { encoding: 'utf8' });
+  expect(actualImg).toEqual(expectedImg);
 });
 
-test('non-existent directory', async () => {
-  nock(/ru\.hexlet\.io/)
+test('non-existent web-site', async () => {
+  nock(/doesnt\.exist/)
     .get(/\//)
-    .reply(200);
-  const wrongPath = path.join(tempPath, 'smth-non-existent');
-  await expect(pageloader(url2, wrongPath)).rejects.toThrow(Error);
+    .reply(404);
+  const url2 = 'https://doesnt.exist';
+  await expect(pageloader(url2, tempPath)).rejects.toThrow(Error);
 });
