@@ -34,12 +34,24 @@ test('downloaded files are as expected', async () => {
   const expectedBody = await readFile('before.html');
   const expectedMainFile = await readFile('after.html');
   const expectedImg = await readFile('nodejs.png');
+  const expectedCSS = await readFile('application.css');
+  const expectedScript = await readFile('runtime.js');
   nock(/ru\.hexlet\.io/)
     .get(/\/courses/)
     .reply(200, expectedBody)
-    .get(/\/assets\/professions\//)
+    .get(/\/courses/)
+    .reply(200, expectedBody)
+    .get(/\/assets\/professions\/nodejs.png/)
     .replyWithFile(200, getFixturePath('nodejs.png'), {
       'Content-Type': 'image/png',
+    })
+    .get(/\/assets\/application.css/)
+    .replyWithFile(200, getFixturePath('application.css'), {
+      'Content-Type': 'text/css',
+    })
+    .get(/\/packs\/js\/runtime.js/)
+    .replyWithFile(200, getFixturePath('runtime.js'), {
+      'Content-Type': 'application/x-javascript',
     });
   await pageloader(url1, tempPath);
   const pathToHTML = path.join(tempPath, fileName);
@@ -48,6 +60,14 @@ test('downloaded files are as expected', async () => {
   const pathToImg = path.join(tempPath, 'ru-hexlet-io-courses_files', 'ru-hexlet-io-assets-professions-nodejs.png');
   const actualImg = await fsp.readFile(pathToImg, { encoding: 'utf8' });
   expect(actualImg).toEqual(expectedImg);
+
+  const pathToCSS = path.join(tempPath, 'ru-hexlet-io-courses_files', 'ru-hexlet-io-assets-application.css');
+  const actualCSS = await fsp.readFile(pathToCSS, { encoding: 'utf8' });
+  expect(actualCSS).toEqual(expectedCSS);
+
+  const pathToScript = path.join(tempPath, 'ru-hexlet-io-courses_files', 'ru-hexlet-io-packs-js-runtime.js');
+  const actualScript = await fsp.readFile(pathToScript, { encoding: 'utf8' });
+  expect(actualScript).toEqual(expectedScript);
 });
 
 test('non-existent web-site', async () => {

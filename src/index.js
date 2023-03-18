@@ -5,51 +5,65 @@ import * as cheerio from 'cheerio';
 
 const { promises: fsp } = fs;
 
+const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config = {}) => {
+  const [providedURL, optimizedHostName, dirForAssets] = commonParams;
+  const responses = [];
+  $(tag).each((_, e) => {
+    const originalLink = $(e).attr(attr)?.startsWith('.') ? $(e).attr(attr).slice(1) : $(e).attr(attr);
+    const originalURL = new URL(originalLink, providedURL.origin);
+    const optimizedFileName = originalURL.pathname.replace(/[^a-zA-Z0-9.]/g, '-');
+    const fileName = originalLink?.includes('.')
+      ? `${optimizedHostName}${optimizedFileName}`
+      : `${optimizedHostName}${optimizedFileName}.html`;
+    const newLink = originalURL.origin === providedURL.origin ? `${dirForAssets}/${fileName}` : originalLink;
+    if (originalURL.origin === providedURL.origin && originalLink !== undefined) {
+      arrayForNames.push(fileName);
+      responses.push(axios.get(originalURL, config)
+        .then((response) => response)
+        .catch((err) => ({ result: 'downloading file failed', error: err })));
+    }
+    $(e).attr(attr, newLink);
+  });
+  return Promise.all(responses);
+};
+
+const saveFilesLocally = (respnosesToResourceRequest, pathToAssets, fileNames) => {
+  const promises = respnosesToResourceRequest.map((res, index) => {
+    const PathToImg = path.join(pathToAssets, fileNames[index]);
+    return fsp.writeFile(PathToImg, res.data);
+  });
+  return Promise.all(promises);
+};
+
 export default (url, outputPath) => {
-  const myURL = new URL(url);
-  const { protocol } = myURL;
-  const hostName = myURL.hostname;
-  const pathName = myURL.pathname;
-  const preName = pathName.length > 1 ? `${hostName}${pathName}` : hostName;
+  const providedURL = new URL(url);
+  const { hostname, pathname } = providedURL;
+  const preName = pathname.length > 1 ? `${hostname}${pathname}` : hostname;
+  const optimizedHostName = hostname.replace(/[^a-zA-Z0-9]/g, '-');
   const optimizedName = preName.replace(/[^a-zA-Z0-9]/g, '-');
   const mainFileName = `${optimizedName}.html`;
   const dirForAssets = `${optimizedName}_files`;
   const pathToMainfile = path.join(outputPath, mainFileName);
   const pathToAssets = path.join(outputPath, dirForAssets);
   const imgNames = [];
-  let html;
+  const resourceNames = [];
+  const scriptNames = [];
+  const commonParams = [providedURL, optimizedHostName, dirForAssets];
+  let $;
   return fsp.mkdir(pathToAssets, { recursive: true })
     .then(() => axios.get(url))
     .then((res) => {
-      const responsesToImgDownload = [];
-      const config = { responseType: 'arraybuffer' };
-      const $ = cheerio.load(res.data);
-      $('img').each((_, e) => {
-        const originalSrc = $(e).attr('src');
-        const originalAddressToImg = `${protocol}//${hostName}/${originalSrc}`;
-        const optimizedImgName = originalSrc.replace(/[^a-zA-Z0-9.]/g, '-');
-        const optimizedHostName = hostName.replace(/[^a-zA-Z0-9]/g, '-');
-        const imgName = `${optimizedHostName}${optimizedImgName}`;
-        imgNames.push(imgName);
-        $(e).attr('src', `${dirForAssets}/${imgName}`);
-        responsesToImgDownload.push(axios.get(originalAddressToImg, config)
-          .then((response) => response)
-          .catch((err) => ({ result: 'downloading images failed', error: err })));
-        // console.log(_, e.name, $(e).attr('src'));
-      });
-      html = $.html();
-      return Promise.all(responsesToImgDownload);
+      $ = cheerio.load(res.data);
+      return downloadFilesFromSite('img', 'src', imgNames, commonParams, $, { responseType: 'arraybuffer' });
     })
-    .then((responsesToImgDownload) => {
-      const promises = responsesToImgDownload.map((res, index) => {
-        const PathToImg = path.join(pathToAssets, imgNames[index]);
-        return fsp.writeFile(PathToImg, res.data);
-      });
-      return Promise.all(promises);
-    })
-    .then(() => fsp.writeFile(pathToMainfile, html))
+    .then((data) => saveFilesLocally(data, pathToAssets, imgNames))
+    .then(() => downloadFilesFromSite('link', 'href', resourceNames, commonParams, $))
+    .then((data) => saveFilesLocally(data, pathToAssets, resourceNames))
+    .then(() => downloadFilesFromSite('script', 'src', scriptNames, commonParams, $))
+    .then((data) => saveFilesLocally(data, pathToAssets, scriptNames))
+    .then(() => fsp.writeFile(pathToMainfile, $.html()))
     .then(() => {
-      console.log('Mission complete');
+      console.log(pathToMainfile);
       return pathToMainfile;
     })
     .catch((error) => {
