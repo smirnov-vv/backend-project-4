@@ -1,6 +1,7 @@
 import axios from 'axios';
 import debug from 'debug';
 import axiosDebug from 'axios-debug-log';
+import Listr from 'listr';
 import fs from 'fs';
 import path from 'path';
 import * as cheerio from 'cheerio';
@@ -14,6 +15,7 @@ axiosDebug.addLogger(axios, axiosLogger);
 const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config = {}) => {
   const [providedURL, optimizedHostName, dirForAssets] = commonParams;
   const responses = [];
+  const linkNames = [];
   $(tag).each((_, e) => {
     const originalLink = $(e).attr(attr)?.startsWith('.') ? $(e).attr(attr).slice(1) : $(e).attr(attr);
     debugLogger(`Original resource: ${originalLink} %s`);
@@ -25,13 +27,16 @@ const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config
     const newLink = originalURL.origin === providedURL.origin ? `${dirForAssets}/${fileName}` : originalLink;
     if (originalURL.origin === providedURL.origin && originalLink !== undefined) {
       arrayForNames.push(fileName);
-      debugLogger(`Resource request:  ${originalURL} %s`);
+      linkNames.push(originalURL);
       responses.push(axios.get(originalURL, config)
         .then((response) => response)
-        .catch((err) => ({ result: 'downloading file failed', error: err })));
+        .catch((err) => ({ result: `Failed to download '${originalURL}'`, error: err })));
     }
     $(e).attr(attr, newLink);
   });
+  const tasksArray = responses.map((promise, index) => ({ title: ` ${linkNames[index]}`, task: () => promise }));
+  const tasks = new Listr(tasksArray, { concurrent: true });
+  tasks.run();
   return Promise.all(responses);
 };
 
@@ -72,7 +77,7 @@ export default (url, outputPath) => {
     .then((data) => saveFilesLocally(data, pathToAssets, scriptNames))
     .then(() => fsp.writeFile(pathToMainfile, $.html()))
     .then(() => {
-      console.log(pathToMainfile);
+      console.log(`Page was successfully downloaded into '${pathToMainfile}'`);
       return pathToMainfile;
     });
 };

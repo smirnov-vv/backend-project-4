@@ -8,3 +8,5 @@
 [![Test Coverage](https://api.codeclimate.com/v1/badges/68decd92181c296e2b6c/test_coverage)](https://codeclimate.com/github/smirnov-vv/backend-project-4/test_coverage)
 
 ## Example
+
+[![asciicast](https://asciinema.org/a/569219.svg)](https://asciinema.org/a/569219)
