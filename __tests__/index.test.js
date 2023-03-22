@@ -40,7 +40,7 @@ test('downloaded files are as expected', async () => {
     .get(/\/courses/)
     .reply(200, expectedBody)
     .get(/\/courses/)
-    .reply(200, expectedBody)
+    .reply(200)
     .get(/\/assets\/professions\/nodejs.png/)
     .replyWithFile(200, getFixturePath('nodejs.png'), {
       'Content-Type': 'image/png',
@@ -57,6 +57,7 @@ test('downloaded files are as expected', async () => {
   const pathToHTML = path.join(tempPath, fileName);
   const actualHTML = await fsp.readFile(pathToHTML, { encoding: 'utf8' });
   expect(actualHTML).toEqual(expectedMainFile);
+
   const pathToImg = path.join(tempPath, 'ru-hexlet-io-courses_files', 'ru-hexlet-io-assets-professions-nodejs.png');
   const actualImg = await fsp.readFile(pathToImg, { encoding: 'utf8' });
   expect(actualImg).toEqual(expectedImg);
@@ -70,10 +71,42 @@ test('downloaded files are as expected', async () => {
   expect(actualScript).toEqual(expectedScript);
 });
 
-test('non-existent web-site', async () => {
+test('failed to access provided URL', async () => {
   nock(/doesnt\.exist/)
     .get(/\//)
     .reply(404);
   const url2 = 'https://doesnt.exist';
-  await expect(pageloader(url2, tempPath)).rejects.toThrow(Error);
+  await expect(() => pageloader(url2, tempPath)).rejects.toThrow('Request failed with status code 404');
+});
+
+test('server response with 500 error', async () => {
+  nock(/ru\.hexlet\.io/)
+    .get(/\/courses/)
+    .reply(500);
+  await expect(() => pageloader(url1, tempPath)).rejects.toThrow('Request failed with status code 500');
+});
+
+test('failed to write file: permission denied', async () => {
+  const expectedBody = await readFile('before.html');
+  const img = await readFile('nodejs.png');
+  nock(/ru\.hexlet\.io/)
+    .get(/\/courses/)
+    .reply(200, expectedBody)
+    .get(/\/assets\/professions\/nodejs.png/)
+    .replyWithFile(200, getFixturePath('nodejs.png'), {
+      'Content-Type': 'image/png',
+    });
+  const dirForAssets = path.join(tempPath, 'ru-hexlet-io-courses_files');
+  await fsp.mkdir(dirForAssets, { recursive: true });
+  const pathToImg = path.join(dirForAssets, 'ru-hexlet-io-assets-professions-nodejs.png');
+  await fsp.writeFile(pathToImg, img);
+  await fsp.chmod(pathToImg, 0o400);
+  await expect(() => pageloader(url1, tempPath)).rejects.toThrow(/EACCES: permission denied, open/);
+});
+
+test('failed to make dir: permission denied', async () => {
+  nock(/ru\.hexlet\.io/)
+    .get(/\/courses/)
+    .reply(200);
+  await expect(() => pageloader(url1, '/sys')).rejects.toThrow('EACCES: permission denied, mkdir \'/sys/ru-hexlet-io-courses_files\'');
 });

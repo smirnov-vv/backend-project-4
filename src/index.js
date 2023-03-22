@@ -1,15 +1,22 @@
 import axios from 'axios';
+import debug from 'debug';
+import axiosDebug from 'axios-debug-log';
 import fs from 'fs';
 import path from 'path';
 import * as cheerio from 'cheerio';
 
 const { promises: fsp } = fs;
 
+const debugLogger = debug('page-loader');
+const axiosLogger = debug('axios');
+axiosDebug.addLogger(axios, axiosLogger);
+
 const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config = {}) => {
   const [providedURL, optimizedHostName, dirForAssets] = commonParams;
   const responses = [];
   $(tag).each((_, e) => {
     const originalLink = $(e).attr(attr)?.startsWith('.') ? $(e).attr(attr).slice(1) : $(e).attr(attr);
+    debugLogger(`Original resource: ${originalLink} %s`);
     const originalURL = new URL(originalLink, providedURL.origin);
     const optimizedFileName = originalURL.pathname.replace(/[^a-zA-Z0-9.]/g, '-');
     const fileName = originalLink?.includes('.')
@@ -18,6 +25,7 @@ const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config
     const newLink = originalURL.origin === providedURL.origin ? `${dirForAssets}/${fileName}` : originalLink;
     if (originalURL.origin === providedURL.origin && originalLink !== undefined) {
       arrayForNames.push(fileName);
+      debugLogger(`Resource request:  ${originalURL} %s`);
       responses.push(axios.get(originalURL, config)
         .then((response) => response)
         .catch((err) => ({ result: 'downloading file failed', error: err })));
@@ -36,6 +44,7 @@ const saveFilesLocally = (respnosesToResourceRequest, pathToAssets, fileNames) =
 };
 
 export default (url, outputPath) => {
+  debugLogger('Booting %s', `page-loader with ${outputPath} ${url}`);
   const providedURL = new URL(url);
   const { hostname, pathname } = providedURL;
   const preName = pathname.length > 1 ? `${hostname}${pathname}` : hostname;
@@ -65,9 +74,5 @@ export default (url, outputPath) => {
     .then(() => {
       console.log(pathToMainfile);
       return pathToMainfile;
-    })
-    .catch((error) => {
-      console.log('Mission failed');
-      throw error;
     });
 };
