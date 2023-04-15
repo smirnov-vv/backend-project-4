@@ -48,7 +48,7 @@ const saveFilesLocally = (respnosesToResourceRequest, pathToAssets, fileNames) =
   return Promise.all(promises);
 };
 
-export default (url, outputPath) => {
+export default (url, outputPath = './') => {
   debugLogger('Booting %s', `page-loader with ${outputPath} ${url}`);
   const providedURL = new URL(url);
   const { hostname, pathname } = providedURL;
@@ -57,7 +57,7 @@ export default (url, outputPath) => {
   const optimizedName = preName.replace(/[^a-zA-Z0-9]/g, '-');
   const mainFileName = `${optimizedName}.html`;
   const dirForAssets = `${optimizedName}_files`;
-  const pathToMainfile = path.join(outputPath = './', mainFileName);
+  const pathToMainfile = path.join(outputPath, mainFileName);
   const pathToAssets = path.join(outputPath, dirForAssets);
   const imgNames = [];
   const resourceNames = [];
