@@ -12,7 +12,7 @@ const debugLogger = debug('page-loader');
 const axiosLogger = debug('axios');
 axiosDebug.addLogger(axios, axiosLogger);
 
-const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config = {}) => {
+const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $) => {
   const [providedURL, optimizedHostName, dirForAssets] = commonParams;
   const responses = [];
   const linkNames = [];
@@ -28,7 +28,7 @@ const downloadFilesFromSite = (tag, attr, arrayForNames, commonParams, $, config
     if (originalURL.origin === providedURL.origin && originalLink !== undefined) {
       arrayForNames.push(fileName);
       linkNames.push(originalURL);
-      responses.push(axios.get(originalURL, config)
+      responses.push(axios.get(originalURL, { responseType: 'arraybuffer' })
         .then((response) => response)
         .catch((err) => ({ result: `Failed to download '${originalURL}'`, error: err })));
     }
@@ -57,7 +57,7 @@ export default (url, outputPath) => {
   const optimizedName = preName.replace(/[^a-zA-Z0-9]/g, '-');
   const mainFileName = `${optimizedName}.html`;
   const dirForAssets = `${optimizedName}_files`;
-  const pathToMainfile = path.join(outputPath, mainFileName);
+  const pathToMainfile = path.join(outputPath = './', mainFileName);
   const pathToAssets = path.join(outputPath, dirForAssets);
   const imgNames = [];
   const resourceNames = [];
@@ -68,12 +68,12 @@ export default (url, outputPath) => {
     .then(() => axios.get(url))
     .then((res) => {
       $ = cheerio.load(res.data);
-      return downloadFilesFromSite('img', 'src', imgNames, commonParams, $, { responseType: 'arraybuffer' });
+      return downloadFilesFromSite('img', 'src', imgNames, commonParams, $);
     })
     .then((data) => saveFilesLocally(data, pathToAssets, imgNames))
-    .then(() => downloadFilesFromSite('link', 'href', resourceNames, commonParams, $, { responseType: 'arraybuffer' }))
+    .then(() => downloadFilesFromSite('link', 'href', resourceNames, commonParams, $))
     .then((data) => saveFilesLocally(data, pathToAssets, resourceNames))
-    .then(() => downloadFilesFromSite('script', 'src', scriptNames, commonParams, $, { responseType: 'arraybuffer' }))
+    .then(() => downloadFilesFromSite('script', 'src', scriptNames, commonParams, $))
     .then((data) => saveFilesLocally(data, pathToAssets, scriptNames))
     .then(() => fsp.writeFile(pathToMainfile, $.html()))
     .then(() => {
