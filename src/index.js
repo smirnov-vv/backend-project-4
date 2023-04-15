@@ -71,9 +71,9 @@ export default (url, outputPath) => {
       return downloadFilesFromSite('img', 'src', imgNames, commonParams, $, { responseType: 'arraybuffer' });
     })
     .then((data) => saveFilesLocally(data, pathToAssets, imgNames))
-    .then(() => downloadFilesFromSite('link', 'href', resourceNames, commonParams, $))
+    .then(() => downloadFilesFromSite('link', 'href', resourceNames, commonParams, $, { responseType: 'arraybuffer' }))
     .then((data) => saveFilesLocally(data, pathToAssets, resourceNames))
-    .then(() => downloadFilesFromSite('script', 'src', scriptNames, commonParams, $))
+    .then(() => downloadFilesFromSite('script', 'src', scriptNames, commonParams, $, { responseType: 'arraybuffer' }))
     .then((data) => saveFilesLocally(data, pathToAssets, scriptNames))
     .then(() => fsp.writeFile(pathToMainfile, $.html()))
     .then(() => {
